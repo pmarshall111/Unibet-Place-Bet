@@ -8,17 +8,21 @@ import java.util.ArrayList;
 
 import static org.openqa.selenium.support.ui.ExpectedConditions.presenceOfElementLocated;
 
-public class AutomateBet {
+public class AutomateBetUniBet {
     private static final String UNIBET_LINK = "https://www.unibet.co.uk/betting/sports/filter/football";
 
     public static void main(String[] args) {
-        placeBet("Slovenia", "Prva Liga", "NK Triglav Kranj", "Maribor", 2, 0.1, 1.3);
+        BetPlacedUniBet bpub = placeBet("Italy", "Serie A", "Bologna", "Juventus", 2, 0.1, 1.3);
+        System.out.println("Odds: " + bpub.getOddsOffered());
+        System.out.println("STake: " + bpub.getStake());
+        System.out.println("Success: " + bpub.isBetSuccessful());
+        System.out.println("bal:" + bpub.getBalance());
     }
 
     //int result 0 = home, 1 = draw, 2 = away
     public static BetPlacedUniBet placeBet(String targetCountry, String leagueName, String homeTeam, String awayTeam, int result, double amount, double minOdds) {
-        int stake = 5;
-        BetPlacedUniBet bet = new BetPlacedUniBet(-1,stake,false);
+        double stake = amount;
+        BetPlacedUniBet bet = new BetPlacedUniBet(-1, stake,false, -1);
         WebDriver driver = new ChromeDriver();
         WebDriverWait wait = new WebDriverWait(driver, 30);
         try {
@@ -38,6 +42,19 @@ public class AutomateBet {
             WebElement loginBtn = wait.until(presenceOfElementLocated(By.cssSelector("button[data-test-name='btn-login']")));
             loginBtn.click();
             Thread.sleep(5000); //waiting for the page to reload otherwise we will find containers before page reload.
+
+            //wait for balance to show
+            wait.until(presenceOfElementLocated(By.cssSelector("span[data-test-name='balance-cash-amount']")));
+            Thread.sleep(2000); //wait for balance to be updated
+            double mainBalance = Double.parseDouble(driver.findElement(By.cssSelector("span[data-test-name='balance-cash-amount']")).getText().substring(1));
+            double bonusBalance = Double.parseDouble(driver.findElement(By.cssSelector("span[data-test-name='balance-bonus-amount']")).getText().substring(1));
+            double balance = mainBalance+bonusBalance;
+            bet.setBalance(balance);
+            if (balance < stake) {
+                stake = balance;
+                bet.setStake(stake);
+            }
+
             //wait for market info
             Thread.sleep(20000); //extra long wait as webpage can take a really long time to load in countries
             wait.until(presenceOfElementLocated(By.cssSelector(".KambiBC-collapsible-container")));
@@ -89,10 +106,11 @@ public class AutomateBet {
             };
 
             //filling out bet form and placing bet
-            wait.until(presenceOfElementLocated(By.cssSelector(".mod-KambiBC-stake-input"))).sendKeys(amount+"");
+            wait.until(presenceOfElementLocated(By.cssSelector(".mod-KambiBC-stake-input"))).sendKeys(bet.getStake()+"");
             driver.findElement(By.cssSelector(".mod-KambiBC-betslip__place-bet-btn")).click();
             wait.until(presenceOfElementLocated(By.cssSelector(".mod-KambiBC-betslip-receipt__close-button"))).click();
-            bet.setBetSuccessful(true);
+            bet.setBetSuccessful();
+            bet.setBalance(bet.getBalance()-bet.getStake());
 
             //logging out
             WebElement accountBtn = driver.findElement(By.cssSelector(".account-box-button"));
@@ -102,7 +120,7 @@ public class AutomateBet {
             wait.until(presenceOfElementLocated(By.cssSelector(".logout-link"))).click();
             Thread.sleep(5000);
         } catch(Exception e) {
-            System.out.println(e);
+            e.printStackTrace();
         } finally {
             driver.quit();
         }
